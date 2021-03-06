@@ -1,7 +1,5 @@
-README
+Exercício feito para o Dia dos Dados Abertos 2021 em Curitiba
 ================
-
-# Exercício para o Dia dos Dados Abertos 2021 - Curitiba
 
 Este exercício foi montado para o [Dia dos Dados Abertos de 2021 em
 Curitiba](https://dadosabertos.curitiba.org) (OpenDataDay2021).
@@ -23,6 +21,8 @@ saude <- readr::read_delim(
   delim = ";",
   col_types = cols(.default = "c")
 )
+
+saude <- janitor::clean_names(saude)
 ```
 
 A função *janitor::clean\_names* faz a troca de nomes como `Área de
@@ -35,10 +35,6 @@ que boa parte dos registros não possuem disponível o campo
 estas informações, e diminuir as colunas apenas para um sub-grupo das
 colunas iniciais.
 
-``` r
-saude <- janitor::clean_names(saude)
-```
-
 Eu gosto de utilizar o pacote *visdat* e *skimr* nas primeiras análises
 sobre dados, porque eles fornecem visões gerais úteis.
 
@@ -46,7 +42,7 @@ sobre dados, porque eles fornecem visões gerais úteis.
 saude %>% dplyr::sample_n(1000) %>% visdat::vis_dat()
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
 
 O gáfico mostra que há muitos registros de atendimento sem código do
 CID. Vamos restringir nossa análise apenas àqueles com esta informaçao.
@@ -58,7 +54,13 @@ registros_com_cid <- saude %>%
     !is.na(descricao_do_cid)
   ) %>% 
   nrow()
+```
 
+São 537322, mas apenas 115493 registros com CID.
+
+Antes de seguir, vamos filtrar os dados e manter apenas os com CID.
+
+``` r
 saude <- saude %>% 
   dplyr::filter(
     !is.na(descricao_do_cid)
@@ -115,10 +117,14 @@ verificar se há diferença de comportamento dos dados conforme o local.
 
 ![](README_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
+# Mapas são legais
+
 Como seria possível colocar isto em um mapa?
 
 Primeiro precisamos de um mapa… e o IPPUC possui vários shapefiles neste
 [site](https://ippuc.org.br/geodownloads/geo.htm).
+
+![ippuc](./site_ippuc.png)
 
 ``` r
 regionais <- sf::read_sf(
@@ -164,7 +170,6 @@ Qual é o total de atendimentos por UPA?
     ## 9 UPA FAZENDINHA         2810
 
 ``` r
-(
 por_upa <- por_upa %>% 
   mutate(
     descricao_da_unidade = stringr::str_remove(descricao_da_unidade, "UPA "),
@@ -172,21 +177,7 @@ por_upa <- por_upa %>%
       descricao_da_unidade == "PORTAO" ~ "PORTÃO",
       descricao_da_unidade == "BOQUEIRAO" ~ "BOQUEIRÃO",
       TRUE ~ descricao_da_unidade))
-)
 ```
-
-    ## # A tibble: 9 x 2
-    ##   descricao_da_unidade     n
-    ##   <chr>                <int>
-    ## 1 SITIO CERCADO        19125
-    ## 2 CAJURU               17890
-    ## 3 CIDADE INDUSTRIAL    16856
-    ## 4 TATUQUARA            15061
-    ## 5 BOA VISTA            14947
-    ## 6 PINHEIRINHO          12676
-    ## 7 CAMPO COMPRIDO       12011
-    ## 8 BOQUEIRÃO             4117
-    ## 9 FAZENDINHA            2810
 
 Vamos tentar um mapa dos atendimentos por bairro. Não basta o número de
 atendimentos, é preciso considerar a população da regional.
@@ -252,30 +243,70 @@ regionais <- regionais %>% dplyr::left_join(
 )
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+
+# Quais são as principais causas de atendimentos?
+
+``` r
+saude %>% count(descricao_do_cid, sort = TRUE)
+```
+
+    ## # A tibble: 2,658 x 2
+    ##    descricao_do_cid                                                            n
+    ##    <chr>                                                                   <int>
+    ##  1 DOR LOMBAR BAIXA                                                         5882
+    ##  2 DIARREIA E GASTROENTERITE DE ORIGEM INFECCIOSA PRESUMIVEL                4578
+    ##  3 PROCEDIMENTO NAO REALIZADO DEVIDO A DECISAO DO PACIENTE POR OUTRAS RAZ…  4415
+    ##  4 CEFALEIA                                                                 3965
+    ##  5 DOR AGUDA                                                                3620
+    ##  6 ANSIEDADE GENERALIZADA                                                   3367
+    ##  7 OUTRAS DORES ABDOMINAIS E AS NAO ESPECIFICADAS                           3341
+    ##  8 EXAME MEDICO GERAL                                                       3110
+    ##  9 INFECCAO DO TRATO URINARIO DE LOCALIZACAO NAO ESPECIFICADA               3038
+    ## 10 NAUSEA E VOMITOS                                                         2726
+    ## # … with 2,648 more rows
 
 ## Ansiedade e doenças relacionadas
 
 ``` r
-# psi <- saude %>% filter(codigo_do_cid %in% c("F410", "F411", "F419")) 
-# 
-# (hist_psi <- psi %>% ggplot() +
-#   geom_histogram(aes(x = data_do_atendimento,
-#                      fill = ..count..), 
-#                  color = "white") +
-#   scale_fill_gradient("Qtde",
-#                       low = "darkblue", 
-#                       high = "aquamarine4") +
-#   labs(title = "Atendimentos com CID",
-#        subtitle = "2020 - 2021 Nov, Dez, Jan",
-#        x = "Data",
-#        y = "Quantidade de Atendimentos com CID") +
-#   theme_minimal() +
-#   geom_vline(xintercept = dmy_hms("25/12/2020 20:00:00")) + 
-#   geom_vline(xintercept = dmy_hms("31/12/2020 23:30:00"), color = "red")
-#)
+psi <- saude %>% filter(codigo_do_cid %in% c("F410", "F411", "F419"))
+
+(psi %>% count(descricao_do_cid, sort = TRUE))
 ```
 
+    ## # A tibble: 3 x 2
+    ##   descricao_do_cid                                           n
+    ##   <chr>                                                  <int>
+    ## 1 ANSIEDADE GENERALIZADA                                  3367
+    ## 2 TRANSTORNO ANSIOSO NAO ESPECIFICADO                      246
+    ## 3 TRANSTORNO DE PANICO [ANSIEDADE PAROXISTICA EPISODICA]   226
+
 ``` r
-# (hist_psi + facet_wrap(~ sexo))
+(hist_psi <- psi %>% ggplot() +
+  geom_histogram(aes(x = data_do_atendimento,
+                     fill = ..count..),
+                 color = "white") +
+  scale_fill_gradient("Qtde",
+                      low = "darkblue",
+                      high = "aquamarine4") +
+  labs(title = "Ansiedade",
+       subtitle = "2020 - 2021 Nov, Dez, Jan",
+       x = "Data",
+       y = "Quantidade de Atendimentos Ansiedade") +
+  theme_minimal() +
+  geom_vline(xintercept = dmy_hms("25/12/2020 20:00:00")) +
+  geom_vline(xintercept = dmy_hms("31/12/2020 23:30:00"), color = "red")
+)
 ```
+
+    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+
+![](README_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+
+``` r
+(hist_psi + facet_wrap(~ sexo))
+```
+
+    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+
+![](README_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->

@@ -1,5 +1,5 @@
 ---
-title: "README"
+title: "Exercício feito para o Dia dos Dados Abertos 2021 em Curitiba"
 output: github_document
 ---
 
@@ -15,8 +15,6 @@ library(scales)
 library(stringr)
 library(sf)
 ```
-
-# Exercício para o Dia dos Dados Abertos 2021 - Curitiba
 
 Este exercício foi montado para o [Dia dos Dados Abertos de 2021 em Curitiba](https://dadosabertos.curitiba.org) (OpenDataDay2021).
 
@@ -34,16 +32,15 @@ saude <- readr::read_delim(
   delim = ";",
   col_types = cols(.default = "c")
 )
+
+saude <- janitor::clean_names(saude)
+
 ```
 
 
 A função *janitor::clean_names* faz a troca de nomes como `Área de Atuação` para *area_de_atuacao* (isto ajuda muito na hora de digitar).
 
 A função skimr::skim() mostra um resumo dos dados. Por exemplo, vemos que boa parte dos registros não possuem disponível o campo *codigo_do_cid*. Para esta análise, vamos eliminar os registros sem estas informações, e diminuir as colunas apenas para um sub-grupo das colunas iniciais.
-
-```{r}
-saude <- janitor::clean_names(saude)
-```
 
 Eu gosto de utilizar o pacote _visdat_ e _skimr_ nas primeiras análises sobre dados, porque eles fornecem visões gerais úteis.
 
@@ -60,11 +57,19 @@ registros_com_cid <- saude %>%
     !is.na(descricao_do_cid)
   ) %>% 
   nrow()
+```
+
+São `r total_registros`, mas apenas `r registros_com_cid` registros com CID.
+
+Antes de seguir, vamos filtrar os dados e manter apenas os com CID.
+
+```{r}
 
 saude <- saude %>% 
   dplyr::filter(
     !is.na(descricao_do_cid)
   )
+
 ```
 
 
@@ -107,9 +112,15 @@ Olhando nos gráficos disponibilizados, percebemos que há um campo para identif
 (hist_saude + facet_wrap(~ descricao_da_unidade))
 ```
 
+
+# Mapas são legais
+
 Como seria possível colocar isto em um mapa?
 
 Primeiro precisamos de um mapa... e o IPPUC possui vários shapefiles neste [site](https://ippuc.org.br/geodownloads/geo.htm).
+
+![ippuc](./site_ippuc.png)
+
 
 ```{r}
 regionais <- sf::read_sf(
@@ -138,12 +149,8 @@ Qual é o total de atendimentos por UPA?
 ```{r}
 (por_upa <- saude %>% 
   count(descricao_da_unidade, sort = T))
-```
 
 
-```{r}
-
-(
 por_upa <- por_upa %>% 
   mutate(
     descricao_da_unidade = stringr::str_remove(descricao_da_unidade, "UPA "),
@@ -151,8 +158,12 @@ por_upa <- por_upa %>%
       descricao_da_unidade == "PORTAO" ~ "PORTÃO",
       descricao_da_unidade == "BOQUEIRAO" ~ "BOQUEIRÃO",
       TRUE ~ descricao_da_unidade))
-)
+
+
 ```
+
+
+
 
 Vamos tentar um mapa dos atendimentos por bairro. Não basta o número de atendimentos, é preciso considerar a população da regional.
 
@@ -214,32 +225,45 @@ regionais <- regionais %>% dplyr::left_join(
 )
 ```
 
+# Quais são as principais causas de atendimentos?
+
+```{r}
+saude %>% count(descricao_do_cid, sort = TRUE)
+```
+
+
 
 ## Ansiedade e doenças relacionadas
 
 ```{r}
-# psi <- saude %>% filter(codigo_do_cid %in% c("F410", "F411", "F419")) 
-# 
-# (hist_psi <- psi %>% ggplot() +
-#   geom_histogram(aes(x = data_do_atendimento,
-#                      fill = ..count..), 
-#                  color = "white") +
-#   scale_fill_gradient("Qtde",
-#                       low = "darkblue", 
-#                       high = "aquamarine4") +
-#   labs(title = "Atendimentos com CID",
-#        subtitle = "2020 - 2021 Nov, Dez, Jan",
-#        x = "Data",
-#        y = "Quantidade de Atendimentos com CID") +
-#   theme_minimal() +
-#   geom_vline(xintercept = dmy_hms("25/12/2020 20:00:00")) + 
-#   geom_vline(xintercept = dmy_hms("31/12/2020 23:30:00"), color = "red")
-#)
+psi <- saude %>% filter(codigo_do_cid %in% c("F410", "F411", "F419"))
+
+(psi %>% count(descricao_do_cid, sort = TRUE))
+```
+
+
+```{r}
+
+(hist_psi <- psi %>% ggplot() +
+  geom_histogram(aes(x = data_do_atendimento,
+                     fill = ..count..),
+                 color = "white") +
+  scale_fill_gradient("Qtde",
+                      low = "darkblue",
+                      high = "aquamarine4") +
+  labs(title = "Ansiedade",
+       subtitle = "2020 - 2021 Nov, Dez, Jan",
+       x = "Data",
+       y = "Quantidade de Atendimentos Ansiedade") +
+  theme_minimal() +
+  geom_vline(xintercept = dmy_hms("25/12/2020 20:00:00")) +
+  geom_vline(xintercept = dmy_hms("31/12/2020 23:30:00"), color = "red")
+)
 
 ```
 
 ```{r}
-# (hist_psi + facet_wrap(~ sexo))
+(hist_psi + facet_wrap(~ sexo))
 
 ```
 
